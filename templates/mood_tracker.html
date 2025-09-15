@@ -117,25 +117,58 @@
     });
   }
 
-  // fetch mood data
+  // fetch enhanced mood data with analytics
   async function loadMoodData(){
     try{
       const res = await fetch('/api/mood-data');
       const json = await res.json();
-      if(!json || !json.labels || json.labels.length === 0){
+      
+      if(!json || !json.chart_data || !json.chart_data.emotion_distribution || Object.keys(json.chart_data.emotion_distribution).length === 0){
         chartNote.style.display = 'block';
         renderChart([], []);
         return;
       }
+      
       chartNote.style.display = 'none';
-      renderChart(json.labels, json.counts);
+      
+      // Use enhanced emotion distribution data
+      const emotions = Object.keys(json.chart_data.emotion_distribution);
+      const counts = Object.values(json.chart_data.emotion_distribution);
+      
+      renderChart(emotions, counts);
+      
+      // Show additional analytics if available
+      if (json.summary) {
+        const summary = json.summary;
+        let analyticsText = `📊 Analytics: `;
+        
+        if (summary.avg_sentiment !== undefined) {
+          const sentimentPercent = Math.round((summary.avg_sentiment + 1) * 50);
+          analyticsText += `Sentiment: ${sentimentPercent}% `;
+        }
+        
+        if (summary.recent_trend) {
+          analyticsText += `| Trend: ${summary.recent_trend} `;
+        }
+        
+        if (summary.mental_health_concerns > 0) {
+          analyticsText += `| ⚠️ ${summary.mental_health_concerns} mental health concerns`;
+        }
+        
+        // Update chart note with analytics
+        chartNote.innerHTML = analyticsText;
+        chartNote.style.display = 'block';
+        chartNote.style.color = '#4CAF50';
+      }
+      
     }catch(e){
       console.error(e);
       chartNote.innerText = 'Error loading chart';
+      chartNote.style.color = '#f44336';
     }
   }
 
-  // save entry
+  // save entry with enhanced analysis
   saveBtn.addEventListener('click', async () => {
     if(!selectedMood){
       saveMsg.innerText = 'Please pick a mood first';
@@ -144,7 +177,7 @@
     }
     const payload = { mood: selectedMood, journal: journalEl.value || ''};
     saveBtn.disabled = true;
-    saveMsg.innerText = 'Saving...';
+    saveMsg.innerText = 'Analyzing and saving...';
     try{
       const res = await fetch('/api/log-mood', {
         method: 'POST',
@@ -152,8 +185,26 @@
         body: JSON.stringify(payload)
       });
       const json = await res.json();
-      if(json.ok){
+      if(json.message === 'Mood logged successfully'){
         saveMsg.innerText = 'Saved ✓';
+        
+        // Show analysis results
+        if (json.analysis) {
+          const analysis = json.analysis;
+          let analysisMsg = `🎭 ${analysis.emotion}`;
+          if (analysis.confidence > 0.7) {
+            analysisMsg += ` (${Math.round(analysis.confidence * 100)}% confident)`;
+          }
+          if (analysis.stress_level !== 'low') {
+            analysisMsg += ` | ⚠️ ${analysis.stress_level} stress`;
+          }
+          if (analysis.mental_health_concern) {
+            analysisMsg += ` | 🏥 Mental health concern detected`;
+          }
+          
+          saveMsg.innerHTML = `Saved ✓<br><small style="color: #666;">${analysisMsg}</small>`;
+        }
+        
         journalEl.value = '';
         selectedMood = null;
         document.querySelectorAll('.emoji-btn').forEach(x => x.classList.remove('active'));
@@ -166,7 +217,7 @@
       console.error(err);
     } finally {
       saveBtn.disabled = false;
-      setTimeout(()=> saveMsg.innerText = '', 2000);
+      setTimeout(()=> saveMsg.innerText = '', 4000);
     }
   });
 

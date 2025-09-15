@@ -1,23 +1,284 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>MindMate Dashboard</title>
+    <title>MindMate Enhanced Dashboard</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #f4f4f9; text-align: center; }
-        .container { max-width: 700px; margin: 50px auto; background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-        h1 { color: #333; }
-        img { margin-top: 20px; border-radius: 10px; }
-        a.button { display: inline-block; margin-top: 20px; padding: 10px 20px; background: #007BFF; color: #fff; text-decoration: none; border-radius: 5px; }
+        body { font-family: 'Inter', Arial, sans-serif; background: #f4f4f9; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 30px; }
+        h1 { color: #333; margin-bottom: 10px; }
+        .subtitle { color: #666; font-size: 16px; }
+        
+        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .card { background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .card h3 { margin-top: 0; color: #333; }
+        
+        .metric { display: flex; justify-content: space-between; align-items: center; margin: 10px 0; }
+        .metric-label { color: #666; }
+        .metric-value { font-weight: bold; color: #333; }
+        
+        .chart-container { text-align: center; margin: 20px 0; }
+        img { max-width: 100%; border-radius: 10px; }
+        
+        .buttons { text-align: center; margin-top: 30px; }
+        a.button { display: inline-block; margin: 10px; padding: 12px 24px; background: #007BFF; color: #fff; text-decoration: none; border-radius: 8px; transition: background 0.3s; }
         a.button:hover { background: #0056b3; }
+        a.button.secondary { background: #6c757d; }
+        a.button.secondary:hover { background: #545b62; }
+        
+        .loading { text-align: center; color: #666; font-style: italic; }
+        .error { color: #dc3545; text-align: center; }
+        
+        .emotion-badge { display: inline-block; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; margin: 2px; }
+        .emotion-joy { background: #d4edda; color: #155724; }
+        .emotion-sadness { background: #d1ecf1; color: #0c5460; }
+        .emotion-anger { background: #f8d7da; color: #721c24; }
+        .emotion-fear { background: #e2e3e5; color: #383d41; }
+        .emotion-neutral { background: #f8f9fa; color: #495057; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="container">
-        <h1>MindMate Dashboard</h1>
-        <p>Total Messages: {{ total_messages }}</p>
-        <img src="/{{ chart_path }}" alt="Mood Chart" width="500">
-        <p><a href="/static/mood_report.pdf" class="button" target="_blank">Download PDF Report</a></p>
-        <p><a href="/" class="button">Back to Chat</a></p>
+        <div class="header">
+            <h1>🧠 MindMate Enhanced Dashboard</h1>
+            <p class="subtitle">Advanced Mental Health Analytics & Insights</p>
+        </div>
+
+        <div class="dashboard-grid">
+            <!-- Mood Summary Card -->
+            <div class="card">
+                <h3>📊 Mood Summary</h3>
+                <div id="mood-summary" class="loading">Loading mood data...</div>
+            </div>
+
+            <!-- Emotion Distribution Card -->
+            <div class="card">
+                <h3>🎭 Emotion Distribution</h3>
+                <div id="emotion-distribution" class="loading">Loading emotion data...</div>
+            </div>
+
+            <!-- Stress Analysis Card -->
+            <div class="card">
+                <h3>⚠️ Stress Analysis</h3>
+                <div id="stress-analysis" class="loading">Loading stress data...</div>
+            </div>
+
+            <!-- Wellbeing Metrics Card -->
+            <div class="card">
+                <h3>🌟 Wellbeing Metrics</h3>
+                <div id="wellbeing-metrics" class="loading">Loading wellbeing data...</div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="card">
+            <h3>📈 Mood Trends</h3>
+            <div class="chart-container">
+                <canvas id="moodChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="buttons">
+            <a href="/api/generate-report" class="button" target="_blank">📄 Generate PDF Report</a>
+            <a href="/api/insights" class="button secondary" target="_blank">🔍 View Detailed Insights</a>
+            <a href="/" class="button secondary">💬 Back to Chat</a>
+            <a href="/mood-tracker-page" class="button secondary">🩺 Mood Tracker</a>
+        </div>
     </div>
+
+    <script>
+        let moodChart = null;
+
+        // Load comprehensive dashboard data
+        async function loadDashboardData() {
+            try {
+                const response = await fetch('/api/mood-data');
+                const data = await response.json();
+                
+                if (data.summary) {
+                    updateMoodSummary(data.summary);
+                    updateEmotionDistribution(data.chart_data.emotion_distribution);
+                    updateStressAnalysis(data.chart_data.stress_levels, data.summary);
+                    updateWellbeingMetrics(data.summary);
+                    updateMoodChart(data.chart_data);
+                } else {
+                    showNoDataMessage();
+                }
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+                showErrorMessage();
+            }
+        }
+
+        function updateMoodSummary(summary) {
+            const container = document.getElementById('mood-summary');
+            container.innerHTML = `
+                <div class="metric">
+                    <span class="metric-label">Total Entries:</span>
+                    <span class="metric-value">${summary.total_entries}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Average Sentiment:</span>
+                    <span class="metric-value">${Math.round((summary.avg_sentiment + 1) * 50)}%</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Recent Trend:</span>
+                    <span class="metric-value">${summary.recent_trend}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Mental Health Concerns:</span>
+                    <span class="metric-value">${summary.mental_health_concerns}</span>
+                </div>
+            `;
+        }
+
+        function updateEmotionDistribution(emotions) {
+            const container = document.getElementById('emotion-distribution');
+            if (!emotions || Object.keys(emotions).length === 0) {
+                container.innerHTML = '<div class="loading">No emotion data available</div>';
+                return;
+            }
+
+            let html = '';
+            const total = Object.values(emotions).reduce((sum, count) => sum + count, 0);
+            
+            Object.entries(emotions).forEach(([emotion, count]) => {
+                const percentage = Math.round((count / total) * 100);
+                const emotionClass = `emotion-${emotion}`;
+                html += `
+                    <div class="metric">
+                        <span class="metric-label">
+                            <span class="emotion-badge ${emotionClass}">${emotion}</span>
+                        </span>
+                        <span class="metric-value">${count} (${percentage}%)</span>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function updateStressAnalysis(stressLevels, summary) {
+            const container = document.getElementById('stress-analysis');
+            if (!stressLevels || Object.keys(stressLevels).length === 0) {
+                container.innerHTML = '<div class="loading">No stress data available</div>';
+                return;
+            }
+
+            let html = '';
+            const total = Object.values(stressLevels).reduce((sum, count) => sum + count, 0);
+            
+            Object.entries(stressLevels).forEach(([level, count]) => {
+                const percentage = Math.round((count / total) * 100);
+                const levelColor = level === 'high' ? '#dc3545' : level === 'medium' ? '#ffc107' : '#28a745';
+                html += `
+                    <div class="metric">
+                        <span class="metric-label" style="color: ${levelColor};">${level.toUpperCase()} Stress:</span>
+                        <span class="metric-value">${count} (${percentage}%)</span>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function updateWellbeingMetrics(summary) {
+            const container = document.getElementById('wellbeing-metrics');
+            
+            // Calculate wellbeing score
+            const wellbeingScore = Math.round((summary.avg_sentiment + 1) * 50);
+            const stressPenalty = summary.mental_health_concerns * 10;
+            const finalScore = Math.max(0, wellbeingScore - stressPenalty);
+            
+            container.innerHTML = `
+                <div class="metric">
+                    <span class="metric-label">Overall Wellbeing:</span>
+                    <span class="metric-value" style="color: ${finalScore > 70 ? '#28a745' : finalScore > 40 ? '#ffc107' : '#dc3545'};">
+                        ${finalScore}%
+                    </span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Emotional Stability:</span>
+                    <span class="metric-value">${summary.recent_trend}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Data Consistency:</span>
+                    <span class="metric-value">${summary.total_entries > 10 ? 'Good' : 'Limited'}</span>
+                </div>
+            `;
+        }
+
+        function updateMoodChart(chartData) {
+            const ctx = document.getElementById('moodChart').getContext('2d');
+            
+            if (moodChart) {
+                moodChart.destroy();
+            }
+
+            if (!chartData.sentiment_trend || chartData.sentiment_trend.length === 0) {
+                ctx.font = '16px Arial';
+                ctx.fillStyle = '#666';
+                ctx.textAlign = 'center';
+                ctx.fillText('No trend data available', ctx.canvas.width / 2, ctx.canvas.height / 2);
+                return;
+            }
+
+            const dates = chartData.sentiment_trend.map(d => d.date);
+            const sentiments = chartData.sentiment_trend.map(d => d.avg_sentiment);
+
+            moodChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: 'Sentiment Score',
+                        data: sentiments,
+                        borderColor: '#007BFF',
+                        backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            min: -1,
+                            max: 1,
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toFixed(1);
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function showNoDataMessage() {
+            document.getElementById('mood-summary').innerHTML = '<div class="loading">No mood data available yet</div>';
+            document.getElementById('emotion-distribution').innerHTML = '<div class="loading">Start logging moods to see analytics</div>';
+            document.getElementById('stress-analysis').innerHTML = '<div class="loading">No stress data available yet</div>';
+            document.getElementById('wellbeing-metrics').innerHTML = '<div class="loading">No wellbeing data available yet</div>';
+        }
+
+        function showErrorMessage() {
+            const containers = ['mood-summary', 'emotion-distribution', 'stress-analysis', 'wellbeing-metrics'];
+            containers.forEach(id => {
+                document.getElementById(id).innerHTML = '<div class="error">Error loading data</div>';
+            });
+        }
+
+        // Load data when page loads
+        window.addEventListener('load', loadDashboardData);
+    </script>
 </body>
 </html>

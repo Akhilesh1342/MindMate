@@ -96,14 +96,63 @@
     // show typing indicator
     const typingEl = showTyping();
 
-    const formData = new FormData();
-    formData.append('message', text);
-
     try {
-      const res = await fetch('/chat', { method: 'POST', body: formData });
+      // Use enhanced chat API with sentiment analysis
+      const res = await fetch('/api/chat', { 
+        method: 'POST', 
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ message: text })
+      });
       const data = await res.json();
       typingEl.remove();
+      
+      // Show enhanced response with sentiment info
       appendBubble(data.reply, 'bot');
+      
+      // Show sentiment analysis if available
+      if (data.sentiment_analysis) {
+        const emotion = data.sentiment_analysis.emotion;
+        const confidence = Math.round(data.sentiment_analysis.confidence * 100);
+        const stressLevel = data.sentiment_analysis.stress_level;
+        const sentimentScore = data.sentiment_analysis.sentiment_score;
+        
+        // Choose appropriate emoji based on emotion
+        let emotionEmoji = '🎭';
+        if (emotion === 'sadness') emotionEmoji = '😢';
+        else if (emotion === 'joy') emotionEmoji = '😊';
+        else if (emotion === 'anger') emotionEmoji = '😠';
+        else if (emotion === 'fear') emotionEmoji = '😰';
+        else if (emotion === 'surprise') emotionEmoji = '😲';
+        else if (emotion === 'disgust') emotionEmoji = '🤢';
+        else if (emotion === 'neutral') emotionEmoji = '😐';
+        
+        let sentimentInfo = `${emotionEmoji} ${emotion.charAt(0).toUpperCase() + emotion.slice(1)}`;
+        
+        // Show confidence for high confidence or critical emotions
+        if (confidence > 80 || emotion === 'sadness' || emotion === 'anger') {
+          sentimentInfo += ` (${confidence}% confident)`;
+        }
+        
+        // Show stress level
+        if (stressLevel !== 'low') {
+          sentimentInfo += ` | ⚠️ ${stressLevel} stress`;
+        }
+        
+        // Show sentiment score for extreme emotions
+        if (Math.abs(sentimentScore) > 0.5) {
+          const sentimentPercent = Math.round((sentimentScore + 1) * 50);
+          sentimentInfo += ` | 📊 ${sentimentPercent}% sentiment`;
+        }
+        
+        appendBubble(sentimentInfo, 'bot');
+      }
+      
+      // Show recommendations if available
+      if (data.recommendations && data.recommendations.length > 0) {
+        const recText = data.recommendations[0];
+        appendBubble(`💡 ${recText}`, 'bot');
+      }
+      
     } catch (err) {
       typingEl.remove();
       appendBubble('⚠️ Error: unable to reach server. Try again.', 'bot');
