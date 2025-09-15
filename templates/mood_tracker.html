@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MindMate — Mood Tracker</title>
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    /* small overrides for tracker UI (keeps your main theme) */
+    .tracker-wrap{max-width:980px;margin:28px auto;padding:18px}
+    .tracker-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .emoji-row{display:flex;gap:12px}
+    .emoji-btn{font-size:30px;padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,0.04);background:transparent;cursor:pointer}
+    .emoji-btn.active{box-shadow:0 6px 18px rgba(43,120,255,0.12);transform:scale(1.08)}
+    .journal{width:100%;min-height:96px;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit}
+    .row{display:flex;gap:12px;align-items:center}
+    .save-btn{background:var(--accent);color:#fff;border:none;padding:10px 14px;border-radius:10px;cursor:pointer}
+    .small-note{color:#9fb0c8;margin-top:8px}
+    .chart-wrap{background:rgba(255,255,255,0.02);padding:12px;border-radius:10px;margin-top:14px}
+  </style>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="tracker-wrap">
+    <div class="tracker-top">
+      <div>
+        <a href="{{ url_for('home') }}" class="nav">← Back to Chat</a>
+        <h2 style="display:inline-block;margin-left:12px">Mood Tracker</h2>
+        <div class="small-note">Click an emoji, add optional notes, then Save. Data populates the chart below.</div>
+      </div>
+      <div>
+        <button id="refresh-chart" class="save-btn">Refresh Chart</button>
+      </div>
+    </div>
+
+    <div class="card" style="padding:14px">
+      <div class="row" style="align-items:flex-start">
+        <div style="flex:0 0 360px">
+          <div><strong>Select mood</strong></div>
+          <div class="emoji-row" id="emoji-row">
+            <!-- emojis will be inserted by JS -->
+          </div>
+
+          <div style="margin-top:10px;">
+            <div><strong>Journal (optional)</strong></div>
+            <textarea id="journal" class="journal" placeholder="Write a short note..."></textarea>
+            <div style="margin-top:8px">
+              <button id="save-btn" class="save-btn">Save Entry</button>
+              <span id="save-msg" style="margin-left:12px;color:#9fb0c8"></span>
+            </div>
+          </div>
+        </div>
+
+        <div style="flex:1;margin-left:18px">
+          <div class="chart-wrap">
+            <canvas id="moodChart" height="150"></canvas>
+          </div>
+          <div id="chart-note" class="small-note">No data yet — send some entries from chat or this form.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // emojis and initial state (similar to your React moods)
+  const moods = ["😊","😐","😔","😢","😡"];
+  let selectedMood = null;
+
+  const emojiRow = document.getElementById('emoji-row');
+  const journalEl = document.getElementById('journal');
+  const saveBtn = document.getElementById('save-btn');
+  const saveMsg = document.getElementById('save-msg');
+  const refreshBtn = document.getElementById('refresh-chart');
+  const chartNote = document.getElementById('chart-note');
+
+  // create emoji buttons
+  moods.forEach(m => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'emoji-btn';
+    btn.innerText = m;
+    btn.onclick = () => {
+      selectedMood = m;
+      document.querySelectorAll('.emoji-btn').forEach(x => x.classList.remove('active'));
+      btn.classList.add('active');
+    };
+    emojiRow.appendChild(btn);
+  });
+
+  // Chart.js setup
+  let chart = null;
+  function renderChart(labels, counts){
+    const ctx = document.getElementById('moodChart').getContext('2d');
+    if(chart) chart.destroy();
+    chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Entries',
+          data: counts,
+          borderRadius: 8,
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {legend:{display:false}},
+        scales: {
+          x: {grid:{display:false}},
+          y: {beginAtZero:true, ticks:{precision:0}}
+        }
+      }
+    });
+  }
+
+  // fetch mood data
+  async function loadMoodData(){
+    try{
+      const res = await fetch('/api/mood-data');
+      const json = await res.json();
+      if(!json || !json.labels || json.labels.length === 0){
+        chartNote.style.display = 'block';
+        renderChart([], []);
+        return;
+      }
+      chartNote.style.display = 'none';
+      renderChart(json.labels, json.counts);
+    }catch(e){
+      console.error(e);
+      chartNote.innerText = 'Error loading chart';
+    }
+  }
+
+  // save entry
+  saveBtn.addEventListener('click', async () => {
+    if(!selectedMood){
+      saveMsg.innerText = 'Please pick a mood first';
+      setTimeout(()=>saveMsg.innerText='', 1800);
+      return;
+    }
+    const payload = { mood: selectedMood, journal: journalEl.value || ''};
+    saveBtn.disabled = true;
+    saveMsg.innerText = 'Saving...';
+    try{
+      const res = await fetch('/api/log-mood', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if(json.ok){
+        saveMsg.innerText = 'Saved ✓';
+        journalEl.value = '';
+        selectedMood = null;
+        document.querySelectorAll('.emoji-btn').forEach(x => x.classList.remove('active'));
+        await loadMoodData();
+      }else{
+        saveMsg.innerText = 'Error: ' + (json.error || 'unknown');
+      }
+    }catch(err){
+      saveMsg.innerText = 'Error saving';
+      console.error(err);
+    } finally {
+      saveBtn.disabled = false;
+      setTimeout(()=> saveMsg.innerText = '', 2000);
+    }
+  });
+
+  refreshBtn.addEventListener('click', loadMoodData);
+
+  // load once on open
+  window.addEventListener('load', loadMoodData);
+</script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MindMate — Welcome</title>
+
+  <!-- Use your main CSS so it matches the app theme -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+  <style>
+    /* small extra tuning for the login card (you can keep it here) */
+    .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#0b1220,#0f172a);padding:30px}
+    .login-card{background:rgba(7,12,20,0.9);padding:34px;border-radius:12px;max-width:520px;width:100%;box-shadow:0 10px 30px rgba(2,6,23,0.6);text-align:center}
+    .login-card h1{margin:0 0 8px;font-size:26px;color:#fff}
+    .login-card p{color:#9fb0c8;margin:0 0 20px}
+    .enter-btn{background:#2b78ff;color:#fff;border:none;padding:12px 18px;border-radius:10px;font-weight:600;cursor:pointer}
+    .enter-btn:hover{filter:brightness(1.05)}
+    .small-note{margin-top:14px;color:#9fb0c8;font-size:13px}
+  </style>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <img src="{{ url_for('static', filename='icon.png') }}"
+     alt="MindMate logo"
+     class="login-logo">
+
+      <h1>Welcome to MindMate</h1>
+      <p>Quick demo — no login required. Click below to enter the prototype.</p>
+
+      <!-- Simple GET form: pressing the button navigates to /home -->
+      <form action="{{ url_for('home') }}" method="get">
+        <button class="enter-btn" type="submit">Enter MindMate</button>
+      </form>
+
+      <div class="small-note">Demo only — Future: real auth & user profiles</div>
+    </div>
+  </div>
+</body>
+</html>

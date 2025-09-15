@@ -4,6 +4,12 @@ from datetime import datetime
 import csv
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
+import os
+import csv
+from datetime import datetime
+import matplotlib.pyplot as plt
+
+USER_CSV = "user_data.csv"
 
 app = Flask(__name__)
 
@@ -32,27 +38,73 @@ def predict_mood(message):
 
 # Log messages
 def log_message(message, mood):
-    with open("user_data.csv", "a", newline="", encoding="utf-8") as f:
+    write_header = not os.path.exists(USER_CSV)
+    with open(USER_CSV, "a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
+        if write_header:
+            writer.writerow(["timestamp", "message", "mood"])
         writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), message, mood])
+
+# API to accept mood + journal entry (from client)
+@app.route("/api/log-mood", methods=["POST"])
+def api_log_mood():
+    # expects JSON: { "mood": "<emoji or label>", "journal": "<text>" }
+    data = request.get_json() or {}
+    mood = data.get("mood", "").strip()
+    journal = data.get("journal", "").strip()
+
+    if not mood:
+        return jsonify({"ok": False, "error": "mood required"}), 400
+
+    # reuse log_message to append to CSV
+    # ensure header is present when logging (log_message handles this if you used the fixed version)
+    log_message(journal if journal else "-", mood)
+    return jsonify({"ok": True})
+
+# API to return aggregated mood data (for chart)
+@app.route("/api/mood-data")
+def api_mood_data():
+    USER_CSV = "user_data.csv"
+    if not os.path.exists(USER_CSV):
+        return jsonify({"labels": [], "counts": []})
+
+    try:
+        df = pd.read_csv(USER_CSV)
+    except Exception as e:
+        print("Error reading user_data.csv:", e)
+        return jsonify({"labels": [], "counts": []})
+
+    if "mood" not in df.columns:
+        return jsonify({"labels": [], "counts": []})
+
+    # produce ordered data: unique moods and counts
+    counts = df["mood"].value_counts()
+    labels = counts.index.tolist()
+    values = counts.values.tolist()
+    return jsonify({"labels": labels, "counts": values})
+
+# route to serve the mood tracker page (render UI)
+@app.route("/mood-tracker-page")
+def mood_tracker_page():
+    return render_template("mood_tracker.html")
+
 
 # Routes
 @app.route("/")
-def index():
+def landing():
+    return render_template("login.html")
+
+@app.route("/home")
+def home():
     return render_template("index.html")
 
 @app.route("/chat", methods=["POST"])
 def chat():
     user_message = request.form["message"]
-
-    # Predict answer
     user_vect = vectorizer.transform([user_message])
     reply = model.predict(user_vect)[0]
-
-    # Predict mood and log
     mood = predict_mood(user_message)
     log_message(user_message, mood)
-
     return jsonify({"reply": reply})
 
 import matplotlib.pyplot as plt
