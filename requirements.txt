@@ -1,0 +1,6 @@
+git init
+git add .
+git commit -m "MindMate initial upload"
+git branch -M main
+git remote set-url origin https://github.com/AJLOR72/MindMate.git
+git push -u origin main
