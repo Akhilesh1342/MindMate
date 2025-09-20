@@ -1,1 +1,1 @@
-"# MindMate2" 
+This is a website built for students who are experiencing mental stress, trauma and other issues. We aim to resolve this problem by building a fully functional chatbot that interacts and updates mental health reports on a regular basis through pattern recognition, data analysis integrated with NLP as well. 
